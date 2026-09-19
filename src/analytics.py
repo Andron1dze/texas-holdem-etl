@@ -28,10 +28,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-import matplotlib
-
-matplotlib.use("Agg")   # рендер без GUI: скрипт работает и на сервере, и в CI
-
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
@@ -360,6 +356,9 @@ def parse_args() -> AnalyticsConfig:
 
 
 def main() -> None:
+    # Рендер без GUI только при запуске скриптом: при импорте из ноутбука
+    # бэкенд не трогаем, чтобы графики Jupyter отображались inline.
+    plt.switch_backend("Agg")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-7s | %(message)s")
     run_analytics(parse_args())
 
