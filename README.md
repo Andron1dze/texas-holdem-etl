@@ -20,6 +20,7 @@
 - [Быстрый старт](#-быстрый-старт)
 - [Структура репозитория](#-структура-репозитория)
 - [Контроль качества данных](#-контроль-качества-данных)
+- [Аналитика и результаты](#-аналитика-и-результаты)
 - [Roadmap](#-roadmap)
 
 ---
@@ -102,6 +103,7 @@ pip install -r requirements.txt
 
 python src/data_loader.py                    # 1000 раздач, seed=42
 python src/data_loader.py --hands 5000 --seed 7
+python src/analytics.py                      # витрины + графики в reports/
 ```
 
 Пример лога запуска:
@@ -121,16 +123,18 @@ texas-holdem-etl/
 ├── .gitignore
 ├── sql/
 │   ├── database_setup.sql      # DDL: таблицы, справочники, триггер, индексы, view
-│   └── analytics_queries.sql   # (этап 2) VPIP/PFR/AF, винрейт по позициям
+│   └── analytics_queries.sql   # витрины: v_player_stats, v_position_winrate
 ├── src/
 │   ├── data_loader.py          # ETL: generate → transform → validate → load
-│   └── analytics.py            # (этап 2) SQL → pandas → Matplotlib
+│   └── analytics.py            # SQL → pandas → Matplotlib, сверка с ground truth
 ├── data/
 │   ├── raw/                    # сырой слой: hand_log.csv, player_profiles.csv
 │   └── poker_analytics.db      # генерируется, в .gitignore
 ├── notebooks/                  # (этап 3) EDA и отчёт
-├── reports/figures/            # графики для README
-└── tests/                      # (этап 2) pytest на инварианты
+├── reports/
+│   ├── player_stats.csv        # выгрузка витрины игроков
+│   └── figures/                # графики для README
+└── tests/                      # (этап 4) pytest на инварианты
 ```
 
 ## ✅ Контроль качества данных
@@ -141,10 +145,35 @@ texas-holdem-etl/
 | SQLite (при загрузке) | STRICT-типы · PK / FK / UNIQUE / CHECK · триггер на суммы |
 | SQLite (после загрузки) | `PRAGMA foreign_key_check` · `PRAGMA integrity_check` · сверка количества строк |
 
+## 📊 Аналитика и результаты
+
+Аналитический слой — три уровня SQL-представлений в `sql/analytics_queries.sql`:
+
+| Представление | Что содержит |
+|---|---|
+| `v_preflop_action_context` | каждое префлоп-действие + `raises_before` (оконная функция `SUM() OVER`) |
+| `v_hand_player_facts` | факты «игрок в раздаче»: флаги VPIP/PFR/3-bet, постфлоп-агрессия, профит в BB |
+| `v_player_stats` | **витрина игроков**: VPIP, PFR, 3-bet %, AF, WTSD, bb/100, стиль, ранг |
+| `v_position_winrate` | **витрина позиций**: bb/100, VPIP, PFR + моменты для доверительного интервала |
+
+**Проверка на ground truth.** Стиль, определённый по статистике, совпал со скрытым
+архетипом генератора у **26 из 30 игроков (87%)**: все Fish и Nit распознаны верно,
+расхождения — на границе TAG/LAG (VPIP 22–23%).
+
+![Карта стилей игроков](reports/figures/vpip_pfr_scatter.png)
+
+![Винрейт по позициям](reports/figures/winrate_by_position.png)
+
+Выводы:
+- Loose-Passive игроки (много коллов, мало рейзов) — главные доноры пула: 4 из 6 в минусе, включая худший результат (−150 bb/100).
+- Баттон — самая прибыльная позиция, блайнды проигрывают ~47 bb/100 из-за обязательных ставок и игры без позиции.
+- 1000 раздач — маленькая выборка для винрейта: 95% ДИ по позиции ±45–70 bb/100. Стабильные выводы о
+  конкретных игроках требуют десятков тысяч раздач (`--hands 50000`).
+
 ## 🗺 Roadmap
 - [x] Этап 1 — схема БД и ETL-загрузчик
-- [ ] Этап 2 — аналитические SQL-запросы: VPIP, PFR, 3-bet %, AF, WTSD, bb/100 по позициям
-- [ ] Этап 3 — визуализация (Matplotlib): профили игроков, винрейт, распределение банков
+- [x] Этап 2 — SQL-витрины (VPIP, PFR, 3-bet %, AF, WTSD, bb/100) и визуализация
+- [ ] Этап 3 — EDA-ноутбук: распределение банков, динамика банкролла, кластеризация стилей
 - [ ] Этап 4 — тесты (pytest) и CI (GitHub Actions)
 
 ## 👤 Автор
