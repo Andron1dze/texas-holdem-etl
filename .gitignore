@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Generated data (воспроизводится командой `python src/data_loader.py`)
+data/*.db
+data/raw/*.csv
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
