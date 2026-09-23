@@ -260,7 +260,7 @@ Ubuntu + Python 3.11 и 3.12 → установка зависимостей →
 - [x] Этап 2 — SQL-витрины (VPIP, PFR, 3-bet %, AF, WTSD, bb/100) и визуализация
 - [x] Этап 3 — EDA, кластеризация K-Means, PCA, динамика банкролла
 - [x] Этап 4 — тесты качества данных (pytest) и CI (GitHub Actions)
-- [ ] Постфлоп-признаки (AF, WTSD) и сравнение K-Means с GaussianMixture
+- [x] Постфлоп-признаки (AF, WTSD) и сравнение K-Means с GaussianMixture
 
 ## 👤 Автор
 **Andron1dze** — [GitHub](https://github.com/Andron1dze)
