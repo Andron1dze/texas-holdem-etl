@@ -1,0 +1,16 @@
+# Данные и вычисления
+numpy>=1.26
+pandas>=2.1
+
+# Визуализация
+matplotlib>=3.8
+
+# Machine Learning (этап 3)
+scikit-learn>=1.4    # StandardScaler, KMeans, PCA, метрики кластеризации
+scipy>=1.11          # linear_sum_assignment — сопоставление кластеров со стилями
+
+# Тесты качества данных (этап 4)
+pytest>=8.0
+
+# Ноутбуки
+jupyterlab>=4.0
