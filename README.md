@@ -6,6 +6,7 @@
 ![SQLite](https://img.shields.io/badge/SQLite-STRICT%20tables-003B57?logo=sqlite&logoColor=white)
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-KMeans%20%7C%20PCA-F7931E?logo=scikitlearn&logoColor=white)
 ![Jupyter](https://img.shields.io/badge/Jupyter-notebook-F37626?logo=jupyter&logoColor=white)
+[![CI](https://github.com/Andron1dze/texas-holdem-etl/actions/workflows/ci.yml/badge.svg)](https://github.com/Andron1dze/texas-holdem-etl/actions/workflows/ci.yml)
 
 End-to-end пайплайн для анализа раздач No-Limit Texas Hold'em (6-max): генерация логически связного
 лога → нормализация → валидация → загрузка в SQLite → SQL-витрины → визуализация → ML-кластеризация игроков.
@@ -23,6 +24,7 @@ End-to-end пайплайн для анализа раздач No-Limit Texas Ho
 | **Правило в SQL** | стиль игрока распознан у 26 из 30 (87%) |
 | **K-Means без учителя** | те же 87% совпадения со скрытыми профилями (ARI 0.62, NMI 0.69) |
 | **PCA** | 2 компоненты сохраняют 94% дисперсии признаков |
+| **CI** | на каждом пуше база пересоздаётся с нуля и проходит 17 тестов качества |
 
 ---
 
@@ -35,6 +37,7 @@ End-to-end пайплайн для анализа раздач No-Limit Texas Ho
 - [Контроль качества данных](#-контроль-качества-данных)
 - [SQL-аналитика](#-sql-аналитика)
 - [ML: кластеризация игроков](#-ml-кластеризация-игроков)
+- [Тесты и CI](#-тесты-и-ci)
 - [Ограничения](#-ограничения)
 - [Roadmap](#-roadmap)
 
@@ -52,6 +55,7 @@ flowchart LR
     F --> G[SQL-витрины<br/>CTE + окна]
     G --> H[analytics.py<br/>Matplotlib]
     G --> I[Notebook<br/>EDA · KMeans · PCA]
+    F --> J[pytest<br/>17 тестов данных]
 ```
 
 | Этап | Файл | Что делает |
@@ -59,6 +63,7 @@ flowchart LR
 | 1. ETL | `src/data_loader.py`, `sql/database_setup.sql` | генерирует, нормализует, валидирует и загружает данные |
 | 2. Аналитика | `sql/analytics_queries.sql`, `src/analytics.py` | витрины метрик, графики, доверительные интервалы |
 | 3. ML и EDA | `notebooks/eda_and_clustering.ipynb` | корреляции, кластеризация, PCA, динамика банкролла |
+| 4. Качество и CI | `tests/test_data_quality.py`, `.github/workflows/ci.yml` | 17 тестов данных, автопрогон пайплайна на каждом пуше |
 
 ## 🗄 Схема базы данных
 
@@ -127,6 +132,7 @@ pip install -r requirements.txt
 python src/data_loader.py          # 1. ETL: 1000 раздач (seed=42) → data/poker_analytics.db
 python src/analytics.py            # 2. SQL-витрины + графики → reports/
 jupyter lab notebooks/eda_and_clustering.ipynb   # 3. EDA и ML
+pytest tests/ -v                   # 4. тесты качества данных
 ```
 
 Параметры генерации: `python src/data_loader.py --hands 50000 --players 80 --seed 7`.
@@ -148,13 +154,16 @@ texas-holdem-etl/
 ├── notebooks/
 │   ├── eda_and_clustering.ipynb    # EDA, K-Means, PCA, банкролл (с выводами)
 │   └── eda_and_clustering.py       # тот же ноутбук в формате `# %%` — для чистых diff
+├── tests/
+│   └── test_data_quality.py        # 17 тестов: инварианты, метрики, целостность, схема
+├── .github/workflows/
+│   └── ci.yml                      # GitHub Actions: ETL + аналитика + pytest
 ├── data/
 │   ├── raw/                        # сырой слой: hand_log.csv, player_profiles.csv
 │   └── poker_analytics.db          # генерируется, в .gitignore
-├── reports/
-│   ├── player_stats.csv            # выгрузка витрины игроков
-│   └── figures/                    # все графики проекта
-└── tests/                          # (план) pytest на инварианты
+└── reports/
+    ├── player_stats.csv            # выгрузка витрины игроков
+    └── figures/                    # все графики проекта
 ```
 
 ## ✅ Контроль качества данных
@@ -221,6 +230,23 @@ Fish уходят далеко от регуляров.
 ![Выбор k](reports/figures/kmeans_k_selection.png)
 </details>
 
+## 🧪 Тесты и CI
+
+`pytest tests/` проверяет не код, а **данные** — 17 тестов в четырёх группах:
+
+| Группа | Что проверяется |
+|---|---|
+| Инварианты раздачи | сумма выигрышей и проигрышей в раздаче равна 0 · банк = сумма ставок · 6 мест за столом · никто не проигрывает больше стека |
+| Метрики витрины | VPIP, PFR, 3-bet %, WTSD в диапазоне [0, 100] · **PFR ≤ VPIP** · число раздач в витрине совпадает с таблицей |
+| Целостность связей | все действия принадлежат игрокам, сидевшим в раздаче · победитель сидел за столом · `PRAGMA foreign_key_check` · сумма соответствует типу действия |
+| Контракт схемы | БД **отвергает** действие постороннего игрока, fold с ненулевой суммой и текст в INTEGER-колонке (негативные тесты с откатом транзакции) |
+
+Тесты проверены «от обратного»: при внесении в базу ошибочных строк падают именно те проверки, которые за них отвечают.
+
+**GitHub Actions** (`.github/workflows/ci.yml`) на каждом пуше и pull request:
+Ubuntu + Python 3.11 и 3.12 → установка зависимостей → `python src/data_loader.py` (свежая база с нуля)
+→ `python src/analytics.py` → `pytest tests/ -v` → выгрузка `reports/` как артефакта сборки.
+
 ## ⚠️ Ограничения
 
 - **Данные синтетические.** Постфлоп-сила руки моделируется случайным блужданием, а не оценкой
@@ -233,7 +259,7 @@ Fish уходят далеко от регуляров.
 - [x] Этап 1 — схема БД и ETL-загрузчик
 - [x] Этап 2 — SQL-витрины (VPIP, PFR, 3-bet %, AF, WTSD, bb/100) и визуализация
 - [x] Этап 3 — EDA, кластеризация K-Means, PCA, динамика банкролла
-- [ ] Тесты (pytest) на инварианты данных и CI (GitHub Actions)
+- [x] Этап 4 — тесты качества данных (pytest) и CI (GitHub Actions)
 - [ ] Постфлоп-признаки (AF, WTSD) и сравнение K-Means с GaussianMixture
 
 ## 👤 Автор
